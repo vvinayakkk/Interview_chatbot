@@ -123,6 +123,9 @@ flowchart TB
     class Init,Interview,Results phase
     class Components,Tracking system
 ```
+
+# Link to the Drive Link for pipeline results
+https://drive.google.com/drive/folders/1HxQx58e6atOFFROyTLCSaCXjKmO6YO16?usp=drive_link
 # Advanced AI Interview Pipeline Documentation
 
 ## Table of Contents
