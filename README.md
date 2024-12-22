@@ -126,6 +126,18 @@ flowchart TB
 
 # Link to the Drive Link for pipeline results
 https://drive.google.com/drive/folders/1HxQx58e6atOFFROyTLCSaCXjKmO6YO16?usp=drive_link
+
+# Folder Structure of the zip file
+![image](https://github.com/user-attachments/assets/98efca79-6434-4e59-ba8b-eec579a91089)
+
+# Sample Output of comparision btw the three types of interviews
+![image](https://github.com/user-attachments/assets/1658f771-7894-4cb7-b9f7-e608a37cb550)
+![image](https://github.com/user-attachments/assets/a4bf8c24-76df-4d06-8a67-5a8db14a5303)
+
+![image](https://github.com/user-attachments/assets/ad914823-4a4f-45e6-8cda-de98acb2219f)
+
+![image](https://github.com/user-attachments/assets/a5008f0e-79b1-48af-bd7d-94fa4106a87f)
+
 # Advanced AI Interview Pipeline Documentation
 
 ## Table of Contents
