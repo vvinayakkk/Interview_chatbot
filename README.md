@@ -1,3 +1,259 @@
+# RAG-Based Question Generation and Evaluation System Documentation
+
+```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#f0f7ff',
+      'primaryTextColor': '#333',
+      'primaryBorderColor': '#1b5e20',
+      'lineColor': '#1b5e20',
+      'fontSize': '16px'
+    }
+  }
+}%%
+
+flowchart TB
+    %% Define styles
+    classDef dataStyle fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef ragStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef modelStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef evalStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef processStyle fill:#fbe9e7,stroke:#bf360c,stroke-width:2px
+    classDef defaultStyle fill:#fff,stroke:#333,stroke-width:2px,font-family:Arial
+
+    %% Data Processing Section
+    subgraph Data["📊 Data Processing & Storage"]
+        MainCSV["Main Dataset CSV<br><hr>• Passages<br>• Questions<br>• Topics<br>• Source: pass_QA_topic_stopic_diff.csv"]
+        MappingCSV["Mapping Dataset CSV<br><hr>• Topic<br>• Sub-Topic<br>• Difficulty<br>• Source: Untitled spreadsheet - Sheet1.csv"]
+    end
+
+    %% RAG System Section
+    subgraph RAG["🔍 RAG System (RAGRetriever Class)"]
+        direction TB
+        Init["Initialization<br><hr>• Embedding Model: all-MiniLM-L6-v2<br>• Vector Dimension: Model Output Size<br>• Architecture: SentenceTransformer"]
+        FAISS["FAISS Index Configuration<br><hr>• Index Type: IndexFlatL2<br>• Search: Exact KNN<br>• Distance Metric: L2<br>• Dimension: Embedding Size"]
+        Embed["Passage Embeddings<br><hr>• Framework: SentenceTransformer<br>• Precision: Float32<br>• Storage: NumPy Arrays"]
+        
+        Init --> Embed
+        Embed --> FAISS
+    end
+
+    %% Model Generation Section
+    subgraph ModelGen["🤖 Question Generation Engine"]
+        direction TB
+        GemmaBase["Base Model Configuration<br><hr>• Model: google/gemma-2b<br>• Precision: Float16<br>• Device: Auto Mapping<br>• Framework: HuggingFace"]
+        PEFT["PEFT Adaptation<br><hr>• Method: LoRA Fine-tuning<br>• Weight Merging: Enabled<br>• Adapter Integration: Post-training"]
+        GenParams["Generation Parameters<br><hr>• Max Sequence Length: 512<br>• Temperature: 0.7<br>• Top-p (Nucleus): 0.9<br>• Top-k: 50<br>• Return Sequences: 1"]
+        
+        GemmaBase --> PEFT
+        PEFT --> GenParams
+    end
+
+    %% Evaluation Section
+    subgraph Eval["📈 Multi-Metric Evaluation System"]
+        direction TB
+        BLEU["BLEU Score Metrics<br><hr>• Variants: BLEU-1 to BLEU-4<br>• Tokenization: Word-level<br>• Case Sensitivity: Insensitive<br>• Framework: NLTK"]
+        ROUGE["ROUGE Score Analysis<br><hr>• Types: ROUGE-1, 2, L<br>• Stemming: Enabled<br>• Metrics: Precision/Recall/F1<br>• Framework: rouge-scorer"]
+        BERT["BERT Score Evaluation<br><hr>• Language Model: en<br>• Metrics: P/R/F1<br>• Aggregation: Mean<br>• Framework: bert-score"]
+        
+        BLEU --> Metrics["Final Metrics Output<br><hr>• Format: CSV<br>• Metrics: Combined<br>• Statistics: Mean/Std"]
+        ROUGE --> Metrics
+        BERT --> Metrics
+    end
+
+    %% Process Flow Section
+    subgraph Process["⚡ Processing Pipeline"]
+        direction TB
+        Filter["1. Data Filtering<br><hr>• By Topic<br>• By Subtopic<br>• By Difficulty"]
+        Retrieve["2. Passage Retrieval<br><hr>• Method: FAISS KNN<br>• Embedding Lookup<br>• Similarity Matching"]
+        Generate["3. Question Generation<br><hr>• Model: Fine-tuned Gemma<br>• Context: Retrieved Passage<br>• Format: Single Question"]
+        Evaluate["4. Quality Evaluation<br><hr>• Multiple Metrics<br>• Reference Comparison<br>• Score Aggregation"]
+    end
+
+    %% Connect Components
+    Data --> RAG
+    RAG --> Process
+    ModelGen --> Process
+    Process --> Eval
+
+    %% Apply Styles
+    class Data dataStyle
+    class RAG ragStyle
+    class ModelGen modelStyle
+    class Eval evalStyle
+    class Process processStyle
+```
+
+
+## 1. System Overview
+This system implements a comprehensive pipeline for generating and evaluating questions using a RAG (Retrieval-Augmented Generation) approach combined with fine-tuned language models. The system processes passages, generates relevant questions, and evaluates them using multiple metrics.
+
+## 2. Data Processing & Storage
+
+### 2.1 Input Data Structure
+#### Main Dataset (pass_QA_topic_stopic_diff.csv)
+- **Content**: Contains primary data for question generation
+- **Columns**:
+  - ID: Unique identifier for each entry
+  - Topic: Main subject area
+  - Sub-Topic: Specific area within the main topic
+  - Passage: Source text for question generation
+  - Difficulty: Complexity level of the content
+  - Question: Reference questions
+  - Answer: Corresponding answers
+
+#### Mapping Dataset (Mapping CSV)
+- **Purpose**: Maps relationships between topics, subtopics, and difficulty levels
+- **Structure**:
+  - Topic: Primary subject classification
+  - Sub-Topic: Secondary classification
+  - Difficulty: Standardized difficulty rating
+
+## 3. RAG System Implementation
+
+### 3.1 Embedding System
+- **Model**: SentenceTransformer (all-MiniLM-L6-v2)
+  - Architecture: Transformer-based
+  - Output Dimension: Model-specific embedding size
+  - Precision: Float32 for maximum accuracy
+
+### 3.2 FAISS Index Configuration
+- **Index Type**: IndexFlatL2
+  - Search Method: Exact K-Nearest Neighbors
+  - Distance Metric: L2 (Euclidean distance)
+  - Storage Format: Dense vector matrix
+- **Performance Characteristics**:
+  - Exact search (no approximation)
+  - Linear time complexity O(n)
+  - Suitable for medium-sized datasets
+
+### 3.3 RAGRetriever Class Implementation
+```python
+class RAGRetriever:
+    def __init__(self, main_csv, mapping_csv, embedding_model='all-MiniLM-L6-v2')
+```
+- Initializes embedding model
+- Processes all passages into embeddings
+- Creates and populates FAISS index
+- Manages data filtering and retrieval operations
+
+## 4. Question Generation Engine
+
+### 4.1 Base Model Configuration
+- **Model**: google/gemma-2b
+  - Precision: Float16 for efficient inference
+  - Device Mapping: Automatic based on hardware
+  - Framework: HuggingFace Transformers
+
+### 4.2 PEFT (Parameter-Efficient Fine-Tuning)
+- **Method**: LoRA (Low-Rank Adaptation)
+  - Weight Merging: Enabled post-training
+  - Integration: Adapter-based approach
+  - Memory Efficiency: Optimized for deployment
+
+### 4.3 Generation Parameters
+- **Configuration**:
+  - Maximum Length: 512 tokens
+  - Temperature: 0.7 (balanced creativity)
+  - Top-p (Nucleus Sampling): 0.9
+  - Top-k: 50
+  - Number of Return Sequences: 1
+- **Prompt Structure**:
+  ```
+  Generate a concise single question based on the following passage:
+  Topic: {topic}
+  Subtopic: {subtopic}
+  Difficulty: {difficulty}
+  Passage: {passage}
+  Question:
+  ```
+
+## 5. Evaluation Metrics System
+
+### 5.1 BLEU Score Implementation
+- **Framework**: NLTK
+- **Variants Calculated**:
+  - BLEU-1: Unigram matching
+  - BLEU-2: Bigram matching
+  - BLEU-3: Trigram matching
+  - BLEU-4: 4-gram matching
+- **Configuration**:
+  - Case Sensitivity: Disabled
+  - Tokenization: Word-level
+  - Smoothing: None
+
+### 5.2 ROUGE Score Analysis
+- **Framework**: rouge-scorer
+- **Types**:
+  - ROUGE-1: Unigram overlap
+  - ROUGE-2: Bigram overlap
+  - ROUGE-L: Longest Common Subsequence
+- **Features**:
+  - Stemming: Enabled
+  - Metrics Calculated:
+    - Precision
+    - Recall
+    - F1-score
+  - Reference Handling: Multiple references supported
+
+### 5.3 BERT Score Evaluation
+- **Configuration**:
+  - Language Model: English
+  - Framework: bert-score
+  - Metrics:
+    - Precision: Token-level precision
+    - Recall: Token-level recall
+    - F1: Harmonic mean
+  - Aggregation: Mean across all scores
+
+## 6. Processing Pipeline
+
+### 6.1 Data Filtering
+1. **Input Processing**:
+   - Topic filtering
+   - Subtopic matching
+   - Difficulty level selection
+2. **Validation**:
+   - Data completeness check
+   - Format validation
+   - Error handling
+
+### 6.2 Passage Retrieval
+1. **Process**:
+   - Convert query to embedding
+   - FAISS similarity search
+   - Result ranking
+2. **Parameters**:
+   - K-nearest neighbors: Configurable
+   - Distance threshold: None (exact search)
+
+### 6.3 Question Generation
+1. **Steps**:
+   - Context preparation
+   - Model inference
+   - Post-processing
+2. **Output Handling**:
+   - Question validation
+   - Format standardization
+   - Error recovery
+
+### 6.4 Evaluation Process
+1. **Metric Calculation**:
+   - Parallel processing of metrics
+   - Score normalization
+   - Statistical analysis
+2. **Output Format**:
+   - CSV with all metrics
+   - Summary statistics
+   - Performance analysis
+
+
+
+
+
+
 # Interview Pipeline
 ```mermaid
 flowchart TB
