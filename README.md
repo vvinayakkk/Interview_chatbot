@@ -1,4 +1,4 @@
-# RAG-Based Question Generation and Evaluation System Documentation
+88# RAG-Based Question Generation and Evaluation System Documentation
 
 ```mermaid
 %%{
@@ -714,3 +714,321 @@ interview_results/
    - Key insights
    - Recommendations
    - Comparative analysis
+
+
+
+
+
+---------------------------------------
+
+
+---
+
+## **1. Core Initialization (`__init__)**
+### **Purpose**  
+Initializes the scoring system with predefined weights for difficulty levels and evaluation metrics.
+
+### **Code**
+```python
+def __init__(self):
+    self.difficulty_weights = {'easy': 1, 'medium': 2, 'hard': 3}
+    self.metric_weights = {
+        'adaptation': 0.2,
+        'coverage': 0.15,
+        'progression': 0.15,
+        'timing': 0.1,
+        'feedback_quality': 0.2,
+        'question_quality': 0.2
+    }
+```
+
+### **Explanation**
+- **`difficulty_weights`**: Assigns numerical values to question difficulties.
+  - Easy = 1, Medium = 2, Hard = 3  
+  *(Used to quantify question complexity in scoring)*.
+- **`metric_weights`**: Defines how much each evaluation dimension contributes to the **final score**.
+  - Example: `adaptation` (20%) + `feedback_quality` (20%) = 40% of total score.
+
+---
+
+## **2. Data Loading Functions**
+### **`load_interview_results(results_dir)`**
+#### **Purpose**  
+Loads interview data from JSON files (`metrics.json` and `performance_log.json`).
+
+#### **Code**
+```python
+def load_interview_results(self, results_dir: str) -> Dict:
+    metrics_path = os.path.join(results_dir, 'metrics.json')
+    performance_path = os.path.join(results_dir, 'performance_log.json')
+
+    with open(metrics_path, 'r') as f:
+        metrics = json.load(f)
+    with open(performance_path, 'r') as f:
+        performance_log = json.load(f)
+
+    return {'metrics': metrics, 'performance_log': performance_log}
+```
+
+#### **Explanation**
+1. **Input**: Path to a session folder (`results_dir`).
+2. **Process**:
+   - Reads `metrics.json` (contains session-level stats).
+   - Reads `performance_log.json` (contains question-by-question details).
+3. **Output**: A dictionary with two keys:
+   ```python
+   {
+       'metrics': {...},          # Overall session statistics
+       'performance_log': [...]   # List of questions with scores/feedback
+   }
+   ```
+
+---
+
+## **3. Main Scoring Function (`calculate_interviewer_scores`)**
+### **Purpose**  
+Computes **all interview performance metrics** from raw data.
+
+#### **Code**
+```python
+def calculate_interviewer_scores(self, results: Dict) -> Tuple[Dict, List[Dict]]:
+    performance_log = results['performance_log']
+    metrics = results['metrics']
+
+    adaptation_results = self._calculate_adaptation_score(performance_log)
+    coverage_results = self._calculate_coverage_score(performance_log)
+    progression_results = self._calculate_progression_score(performance_log)
+    timing_results = self._calculate_timing_score(performance_log)
+    feedback_results = self._calculate_feedback_quality(performance_log)
+    question_results = self._calculate_question_quality(performance_log)
+
+    weighted_score = (
+        self.metric_weights['adaptation'] * adaptation_results['score'] +
+        self.metric_weights['coverage'] * coverage_results['score'] +
+        self.metric_weights['progression'] * progression_results['score'] +
+        self.metric_weights['timing'] * timing_results['score'] +
+        self.metric_weights['feedback_quality'] * feedback_results['score'] +
+        self.metric_weights['question_quality'] * question_results['score']
+    )
+
+    return {
+        'overall_scores': {
+            'adaptation': adaptation_results['score'],
+            'coverage': coverage_results['score'],
+            'progression': progression_results['score'],
+            'timing': timing_results['score'],
+            'feedback_quality': feedback_results['score'],
+            'question_quality': question_results['score'],
+            'weighted_score': weighted_score,
+            'unweighted_score': np.mean([...])  # Average of all metrics
+        },
+        'cognitive_engagement': self._calculate_cognitive_engagement(performance_log),
+        'question_details': [...]  # Per-question breakdown
+    }
+```
+
+#### **Explanation**
+1. **Input**: Raw data from `load_interview_results`.
+2. **Process**:
+   - Calls **6 sub-functions** to compute individual metrics.
+   - Calculates **weighted overall score** using `metric_weights`.
+3. **Output**:
+   - `overall_scores`: Aggregated metrics (weighted and unweighted).
+   - `cognitive_engagement`: Measures question complexity and topic flow.
+   - `question_details`: Scores for each question.
+
+---
+
+## **4. Individual Metric Calculations**
+### **A. Adaptation Score (`_calculate_adaptation_score`)**
+#### **Purpose**  
+Measures if the interviewer adjusts difficulty **based on candidate performance**.
+
+#### **Logic**
+```python
+prev_score = previous_question['score']
+curr_diff = current_question['difficulty']
+diff_change = curr_diff - prev_diff
+
+if prev_score > 0.8 and diff_change >= 0:    # Did well → harder question
+    score = 1.0
+elif prev_score < 0.4 and diff_change <= 0:  # Did poorly → easier question
+    score = 1.0
+else:
+    score = 0.0  # Poor adaptation
+```
+
+#### **Output**
+```python
+{
+    'score': 0.75,                   # Average adaptation score
+    'individual_scores': [1, 0, 1],   # Per-question adaptation scores
+    'transitions': [...]              # Detailed difficulty changes
+}
+```
+
+---
+
+### **B. Coverage Score (`_calculate_coverage_score`)**
+#### **Purpose**  
+Evaluates **breadth and balance** of topics covered.
+
+#### **Formula**
+```python
+unique_topics = count_distinct_topics()
+topic_distribution = count_questions_per_topic()
+entropy = -sum(p * log(p) for p in topic_distribution)  # Measures uniformity
+normalized_entropy = entropy / max_possible_entropy
+
+coverage_score = 0.7 * (unique_topics / total_topics) + 0.3 * normalized_entropy
+```
+
+#### **Output**
+```python
+{
+    'score': 0.85,
+    'topic_distribution': {'Algorithms': 5, 'OOP': 3},
+    'entropy_metrics': {...}
+}
+```
+
+---
+
+### **C. Progression Score (`_calculate_progression_score`)**
+#### **Purpose**  
+Checks if difficulty progresses **logically** (easy → medium → hard).
+
+#### **Logic**
+Similar to `adaptation`, but focuses on **longer sequences** rather than single transitions.
+
+---
+
+### **D. Timing Score (`_calculate_timing_score`)**
+#### **Purpose**  
+Evaluates if time spent per question is **appropriate**.
+
+#### **Scoring**
+```python
+time_per_question = [q['time_taken'] for q in performance_log]
+
+if 30 <= time <= 180:     # Ideal range
+    score = 1.0
+elif 20 <= time <= 300:   # Acceptable range
+    score = 0.5
+else:                     # Too short/long
+    score = 0.0
+```
+
+#### **Output**
+```python
+{
+    'score': 0.9,
+    'timing_metrics': {
+        'mean_time': 45.2,
+        'std_dev': 12.1,
+        'percentiles': {...}
+    }
+}
+```
+
+---
+
+### **E. Feedback Quality (`_calculate_feedback_quality`)**
+#### **Purpose**  
+Measures how **useful** the interviewer's feedback is.
+
+#### **Scoring Criteria (1 point per met condition)**  
+1. **Length ≥ 20 words**  
+2. **Contains explanations** ("because", "therefore")  
+3. **Constructive suggestions** ("improve", "better")  
+4. **Clear assessment** ("correct/incorrect")  
+
+#### **Output**
+```python
+{
+    'score': 0.8,
+    'feedback_analysis': [
+        {'question_id': 1, 'feedback_length': 25, 'contains_explanation': 1, ...}
+    ]
+}
+```
+
+---
+
+### **F. Question Quality (`_calculate_question_quality`)**
+#### **Purpose**  
+Evaluates if questions are **well-designed**.
+
+#### **Scoring Criteria (1 point per met condition)**  
+1. **Length ≥ 10 words**  
+2. **Ends with "?"**  
+3. **Requires explanation** ("explain", "why")  
+4. **Relevant to topic**  
+
+#### **Output**
+```python
+{
+    'score': 0.9,
+    'question_analysis': [
+        {'question_id': 1, 'is_proper_question': 1, ...}
+    ]
+}
+```
+
+---
+
+## **5. Cognitive Engagement (`_calculate_cognitive_engagement`)**
+### **Purpose**  
+Analyzes **question complexity** and **topic transitions**.
+
+### **Logic**
+1. **Question Complexity**:  
+   - Checks if later questions are **longer/more complex**.
+2. **Topic Connections**:  
+   - Scores **meaningful topic shifts** (e.g., "OOP → Data Structures" = good).
+
+### **Output**
+```python
+{
+    'question_complexity': {'score': 0.7, 'progressions': [...]},
+    'topic_connections': {'score': 0.8, 'transitions': [...]}
+}
+```
+
+---
+
+## **6. Data Processing (`process_directory`, `process_zip_files`)**
+### **Purpose**  
+Handles batch processing of multiple interview sessions.
+
+### **Workflow**
+1. **`process_directory(base_dir)`**  
+   - Finds all session folders.  
+   - Runs scoring for each.  
+2. **`process_zip_files(zip_dir, output_dir)`**  
+   - Extracts ZIP files.  
+   - Processes each session.  
+   - Saves results.  
+
+### **Output Structure**
+```
+output_dir/
+├── session_1/
+│   └── scores.json       # Individual session results
+└── combined_analysis/    # Aggregated metrics
+    ├── combined_metrics.json
+    └── summary_report.txt
+```
+
+---
+
+## **Summary**
+This system provides a **quantitative framework** to evaluate interviewers across:
+1. **Adaptation** (dynamic difficulty adjustment)  
+2. **Coverage** (topic breadth/depth)  
+3. **Progression** (logical question flow)  
+4. **Timing** (time management)  
+5. **Feedback Quality** (usefulness)  
+6. **Question Quality** (clarity/relevance)  
+
+Each function contributes to a **comprehensive assessment** of interviewer performance. 🚀
