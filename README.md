@@ -1032,3 +1032,86 @@ This system provides a **quantitative framework** to evaluate interviewers acros
 6. **Question Quality** (clarity/relevance)  
 
 Each function contributes to a **comprehensive assessment** of interviewer performance. 🚀
+ 
+## Finetuning Module
+
+- **Location**: `Finetuning Module/Finetuning.ipynb`, `Finetuning Module/Metrics.ipynb`
+- **Goal**: Fine-tune base LLMs for higher-quality, curriculum-aware question generation and improved alignment with the dataset taxonomy (Topic → Sub-Topic → Difficulty).
+
+### Frameworks
+- **Unsloth**: Parameter-efficient finetuning (PEFT) with LoRA/QLoRA for fast training, low VRAM usage, and stable convergence.
+- **Hugging Face**: Uses `transformers`, `peft`, and `datasets` for model loading, adapters, training, and pushing artifacts to the Hub.
+
+### Typical Workflow (high level)
+1. Load base model and tokenizer with 4/8-bit quantization if needed.
+2. Prepare data (conversation-style prompts or instruction pairs) from `pass_QA_topic_stopic_diff.csv`.
+3. Configure **Unsloth** LoRA (rank, alpha, dropout, target modules) and training args.
+4. Train with gradient accumulation + sequence packing; track metrics in `Metrics.ipynb`.
+5. Merge LoRA weights (optional) and export: local artifacts + Hugging Face Hub.
+
+### Example (pseudo-code)
+```python
+# 1) Load model
+from transformers import AutoTokenizer
+from unsloth import FastLanguageModel
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="google/gemma-2b",
+    load_in_4bit=True,
+)
+
+# 2) Apply LoRA (PEFT)
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=16, lora_alpha=32, lora_dropout=0.05,
+    target_modules=["q_proj","k_proj","v_proj","o_proj"],
+)
+
+# 3) Train with HF Trainer or Unsloth trainer wrappers
+# 4) (Optional) Merge adapters and push to Hub
+# model.push_to_hub("<user>/<repo>")
+```
+
+### Notes
+- Prefer QLoRA for large models; LoRA for mid-size models when VRAM allows.
+- Keep evaluation prompts consistent with the RAG generator to avoid drift.
+- Log loss, exact-match of question constraints, and diversity metrics across topics.
+
+---
+
+## Synthetic Data Generation Pipeline
+
+- **Location**: `synthethic_data_generation_pipeline/app.py`
+- **Goal**: Expand training coverage with high-quality, diverse Q/A pairs that mirror real passages and taxonomy without leaking evaluation data.
+
+### Anti-repetition and diversity controls
+- **Semantic deduplication**: Embed candidate questions; drop if cosine similarity ≥ 0.92 with any prior question in same Topic/Sub-Topic.
+- **Lexical overlap guard**: Reject if n-gram overlap with recent k questions ≥ threshold (e.g., Jaccard ≥ 0.6 over 3-grams).
+- **Prompt caching**: Cache (topic, subtopic, difficulty, passage-hash) → question; skip regenerating identical contexts.
+- **Passage hashing**: Use stable hash (e.g., SHA-1 of normalized passage) to avoid regenerating on same chunk.
+- **Round-robin sampling**: Cycle Topic/Sub-Topic/Difficulty to balance coverage and reduce topical loops.
+- **Temperature bands**: Use temperature/top-p schedules per difficulty to vary surface form while keeping constraints.
+- **Seed control**: Fix seeds per batch for reproducibility during QA.
+
+### Example guards (pseudo-code)
+```python
+def should_keep(new_q, topic, subtopic, pool):
+    # semantic check
+    sim = max(cosine(embed(new_q), embed(q)) for q in pool[(topic, subtopic)]) if pool[(topic, subtopic)] else 0.0
+    if sim >= 0.92:
+        return False
+    # lexical check
+    if jaccard_ngrams(new_q, pool[(topic, subtopic)], n=3) >= 0.6:
+        return False
+    return True
+```
+
+### Outputs
+- Generated datasets stored with metadata: `topic`, `subtopic`, `difficulty`, `passage_hash`, `source`, and dedup flags.
+- Compatible with the Finetuning Module for instruction-style training.
+
+---
+
+## New Folders Reference
+
+- `Finetuning Module/` — notebooks for Unsloth + Hugging Face finetuning and metrics.
+- `synthethic_data_generation_pipeline/` — app for controlled synthetic Q/A generation with anti-repetition.
